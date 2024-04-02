@@ -1,59 +1,67 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <inttypes.h>
 #include <errno.h>
 
-#define WI_PATH_SIZE 256
+typedef enum {
+    AST_EX_OFFSET,
+    AST_EX_NUMBER,
+    AST_EX_ID,
+    AST_EX_PATH,
+    AST_EX_STRING,
+    AST_EX_ADDRESS,
+    AST_EX_SUBSCRIPT,
+    AST_EX_BLOCKSPEC,
+    AST_EX_STRUCTSPEC,
+    AST_EX_FIELDSPEC,
+    AST_EX_TYPESPEC,
+    AST_KW_STATE
+} ast_node_t;
 
-typedef struct {
-    char* string;
-} wi_string_t;
+struct ast_node {
+    ast_node_t type;
+    int64_t ast_num;
+    char* ast_str;
+};
 
-void wi_error_set_errno(int errnum) {
-    // Error handling code here
-}
-
-bool wi_string_write_to_file(wi_string_t* string, wi_string_t* path) {
-    FILE* fp;
-    char fullpath[WI_PATH_SIZE];
-    
-    snprintf(fullpath, sizeof(fullpath), "%s~", path->string);
-    
-    fp = fopen(fullpath, "w");
-    if (!fp) {
-        wi_error_set_errno(errno);
-        return false;
+int ast_expr_init(struct ast_node* expr, ast_node_t type, const char* str) {
+    int ret = 0;
+    switch (type) {
+        case AST_EX_OFFSET:
+            str++; // Cut off the +
+        case AST_EX_NUMBER:
+            ret = sscanf(str, "%" SCNi64, &expr->ast_num);
+            if (ret != 1) {
+                return 1;
+            }
+            break;
+        case AST_EX_ID:
+        case AST_EX_PATH:
+        case AST_EX_STRING:
+            expr->ast_str = strdup(str);
+            if (expr->ast_str == NULL) {
+                return 1;
+            }
+            break;
+        case AST_EX_ADDRESS:
+        case AST_EX_SUBSCRIPT:
+        case AST_EX_BLOCKSPEC:
+        case AST_EX_STRUCTSPEC:
+        case AST_EX_FIELDSPEC:
+        case AST_EX_TYPESPEC:
+        case AST_KW_STATE:
+            break;
+        default:
+            errno = EINVAL;
+            return 1;
     }
-    
-    fprintf(fp, "%s", string->string);
-    fclose(fp);
-    
-    if (rename(fullpath, path->string) < 0) {
-        wi_error_set_errno(errno);
-        (void)unlink(fullpath);
-        return false;
-    }
-    
-    return true;
+    return 0;
 }
 
 int main() {
-    wi_string_t* string = (wi_string_t*)malloc(sizeof(wi_string_t));
-    string->string = "Hello, World!";
-    
-    wi_string_t* path = (wi_string_t*)malloc(sizeof(wi_string_t));
-    path->string = "/path/to/file.txt";
-    
-    bool success = wi_string_write_to_file(string, path);
-    
-    if (success) {
-        printf("File written successfully.\n");
-    } else {
-        printf("Failed to write file.\n");
-    }
-    
-    free(string);
-    free(path);
-    
+    struct ast_node expr;
+    ast_expr_init(&expr, AST_EX_NUMBER, "42");
+    printf("ast_num: %" PRId64 "\n", expr.ast_num);
     return 0;
 }
